@@ -10,15 +10,6 @@ use Sstalle\php7cc\CompatibilityViolation\Message;
 class CLIResultPrinter implements ResultPrinterInterface
 {
     /**
-     * @var array
-     */
-    private static $colors = array(
-        Message::LEVEL_INFO => null,
-        Message::LEVEL_WARNING => 'yellow',
-        Message::LEVEL_ERROR => 'red',
-    );
-
-    /**
      * @var CLIOutputInterface
      */
     protected $output;
@@ -28,10 +19,20 @@ class CLIResultPrinter implements ResultPrinterInterface
      */
     protected $prettyPrinter;
 
+    protected $fieldSeparator = "|";
+
+    protected $codeMaxLength = 20;
+
     /**
      * @var NodeStatementsRemover
      */
     protected $nodeStatementsRemover;
+
+    private static $levelLabels = [
+        Message::LEVEL_INFO => 'info',
+        Message::LEVEL_WARNING => 'warning',
+        Message::LEVEL_ERROR => 'error',
+	];
 
     /**
      * @param CLIOutputInterface    $output
@@ -46,6 +47,8 @@ class CLIResultPrinter implements ResultPrinterInterface
         $this->output = $output;
         $this->prettyPrinter = $prettyPrinter;
         $this->nodeStatementsRemover = $nodeStatementsRemover;
+
+        $this->output->writeln("File" . $this->fieldSeparator . "Line" . $this->fieldSeparator . "Level" . $this->fieldSeparator . "Message" . $this->fieldSeparator . "Code");
     }
 
     /**
@@ -53,25 +56,19 @@ class CLIResultPrinter implements ResultPrinterInterface
      */
     public function printContext(ContextInterface $context)
     {
-        $this->output->writeln('');
-        $this->output->writeln(sprintf('File: <fg=cyan>%s</fg=cyan>', $context->getCheckedResourceName()));
-
+        $file = sprintf('%s', $context->getCheckedResourceName());
+        
         foreach ($context->getMessages() as $message) {
             $this->output->writeln(
-                $this->formatMessage($message)
+                $file . $this->fieldSeparator . $this->formatMessage($message)
             );
         }
 
         foreach ($context->getErrors() as $error) {
             $this->output->writeln(
-                sprintf(
-                    '> <fg=red>%s</fg=red>',
-                    $error->getText()
-                )
+                $file . $this->fieldSeparator . $this->fieldSeparator . $this->fieldSeparator . $error->getText()
             );
         }
-
-        $this->output->writeln('');
     }
 
     /**
@@ -79,18 +76,6 @@ class CLIResultPrinter implements ResultPrinterInterface
      */
     public function printMetadata(CheckMetadata $metadata)
     {
-        $checkedFileCount = $metadata->getCheckedFileCount();
-        $elapsedTime = $metadata->getElapsedTime();
-
-        $this->output->writeln(
-            sprintf(
-                'Checked <fg=green>%d</fg=green> file%s in <fg=green>%.3f</fg=green> second%s',
-                $checkedFileCount,
-                $checkedFileCount > 1 ? 's' : '',
-                $elapsedTime,
-                $elapsedTime > 1 ? 's' : ''
-            )
-        );
     }
 
     /**
@@ -104,22 +89,13 @@ class CLIResultPrinter implements ResultPrinterInterface
         $prettyPrintedNodes = str_replace("\n", "\n    ", $this->prettyPrinter->prettyPrint($nodes));
 
         $text = $message->getRawText();
-        $color = self::$colors[$message->getLevel()];
-
-        if ($color) {
-            $text = sprintf(
-                '<fg=%s>%s</fg=%s>',
-                $color,
-                $text,
-                $color
-            );
-        }
 
         return sprintf(
-            "> Line <fg=cyan>%s</fg=cyan>: %s\n    %s",
+            "%s" . $this->fieldSeparator . "%s" . $this->fieldSeparator . "%s" . $this->fieldSeparator . "%s",
             $message->getLine(),
+            self::$levelLabels[$message->getLevel()],
             $text,
-            $prettyPrintedNodes
+            substr(str_replace(["\n", $this->fieldSeparator], "", $prettyPrintedNodes), 0, $this->codeMaxLength)
         );
     }
 }
